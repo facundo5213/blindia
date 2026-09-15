@@ -1,11 +1,12 @@
-"""Robust ownership of the OCR engine.
+"""Dueño robusto del motor de OCR.
 
-Kept loaded for the app's lifetime rather than reloaded on every capture, so
-a capture only pays the cost of inference (~2-3s on this board's CPU), not a
-full model load (RapidOCR / ONNXRuntime, PP-OCRv5 mobile weights -- see
-`blindia.config.OcrSettings` for why these were chosen over native PaddleOCR
-(crashes on this CPU's SIMD feature set) and Tesseract (no supported
-system-package install path in this app's container).
+Se mantiene cargado durante toda la vida de la app en vez de recargarlo en
+cada captura, así una captura solo paga el costo de la inferencia (~2-3s en
+la CPU de esta placa), no una carga completa del modelo (RapidOCR /
+ONNXRuntime, pesos PP-OCRv5 mobile -- ver `blindia.config.OcrSettings` para
+el porqué de elegirlos por sobre PaddleOCR nativo (crashea con el set de
+instrucciones SIMD de esta CPU) y Tesseract (sin forma soportada de
+instalarlo como paquete de sistema en el contenedor de esta app).
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ logger = Logger(__name__)
 
 
 class OcrService:
-    """Owns the RapidOCR engine and exposes a single text-extraction call."""
+    """Es dueño del motor RapidOCR y expone una sola llamada de extracción de texto."""
 
     def __init__(self, settings: OcrSettings) -> None:
         self._settings = settings
@@ -28,17 +29,17 @@ class OcrService:
 
     @property
     def is_started(self) -> bool:
-        """Whether the OCR models have been successfully loaded."""
+        """Si los modelos de OCR se cargaron con éxito."""
         return self._engine is not None
 
     def start(self) -> None:
-        """Load the OCR models. Safe to call once at app startup.
+        """Carga los modelos de OCR. Seguro de llamar una sola vez al arrancar la app.
 
-        Loading the ONNX models takes a few seconds, so this should run once
-        up front rather than on the first capture.
+        Cargar los modelos ONNX tarda unos segundos, así que esto debería
+        correr una sola vez por adelantado en vez de en la primera captura.
 
         Raises:
-            OcrUnavailableError: the OCR engine or its models failed to load.
+            OcrUnavailableError: el motor de OCR o sus modelos fallaron al cargar.
         """
         if self._engine is not None:
             logger.debug("OCR engine already started, ignoring duplicate start()")
@@ -65,18 +66,18 @@ class OcrService:
         logger.info("OCR engine started (RapidOCR, PP-OCRv5 mobile det + latin mobile rec)")
 
     def stop(self) -> None:
-        """Release the OCR engine. Safe to call even if never started."""
+        """Libera el motor de OCR. Seguro de llamar aunque nunca se haya arrancado."""
         self._engine = None
 
     def extract_text(self, frame: np.ndarray) -> OcrResult:
-        """Run OCR on `frame` and return the recognized text.
+        """Corre OCR sobre `frame` y devuelve el texto reconocido.
 
         Args:
-            frame: BGR numpy array (e.g. `CaptureResult.frame`).
+            frame: array numpy BGR (ej. `CaptureResult.frame`).
 
         Raises:
-            OcrUnavailableError: called before a successful `start()`.
-            OcrFailedError: the OCR engine raised while processing the frame.
+            OcrUnavailableError: se llamó antes de un `start()` exitoso.
+            OcrFailedError: el motor de OCR lanzó una excepción al procesar el frame.
         """
         if self._engine is None:
             raise OcrUnavailableError(
@@ -84,7 +85,7 @@ class OcrService:
             )
 
         try:
-            rgb_frame = frame[:, :, ::-1]  # camera frames are BGR; RapidOCR expects RGB
+            rgb_frame = frame[:, :, ::-1]  # los frames de la cámara son BGR; RapidOCR espera RGB
             result = self._engine(rgb_frame, use_cls=self._settings.use_cls)
         except Exception as exc:
             logger.error(f"OCR inference failed: {exc}")

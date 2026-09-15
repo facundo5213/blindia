@@ -1,12 +1,12 @@
-"""Blind IA -- entry point.
+"""Blind IA -- punto de entrada.
 
-Wires the capture module (camera + storage + trigger) and keeps the camera
-open for the app's lifetime.
+Conecta el módulo de captura (cámara + almacenamiento + trigger) y mantiene
+la cámara abierta durante toda la vida de la app.
 
-Trigger source is the physical button (blindia/triggers/button.py), read on
-the MCU (sketch/sketch.ino) and relayed over the Bridge. `KeyboardTrigger`
-(blindia/triggers/keyboard.py) is still available as a FIFO-based stand-in
-for testing without the button.
+La fuente del trigger es el pulsador físico (blindia/triggers/button.py),
+leído en el MCU (sketch/sketch.ino) y transmitido por el Bridge.
+`KeyboardTrigger` (blindia/triggers/keyboard.py) sigue disponible como
+respaldo basado en FIFO para testing sin el botón.
 """
 import time
 
@@ -42,11 +42,11 @@ except BlindIAError as exc:
 
 
 def run_capture(reason: str) -> None:
-    """Run one capture, OCR it, and parse a product out of the text. Called by every trigger source.
+    """Corre una captura, le hace OCR, y parsea un producto del texto. La llama cada fuente de trigger.
 
-    Logs a per-stage timing breakdown (ms) -- temporary instrumentation to
-    find where the button-to-voice latency goes; see README "Latencia del
-    circuito completo" for how to read it and what's been ruled out.
+    Loguea un desglose de tiempos por etapa (ms) -- instrumentación
+    temporal para encontrar a dónde se va la latencia entre el botón y la
+    voz.
     """
     t_inicio = time.perf_counter()
 
@@ -90,5 +90,5 @@ def loop() -> None:
     run_capture("button")
 
 
-run_capture("startup")  # smoke test: confirm the pipeline works before waiting on triggers
+run_capture("startup")  # smoke test: confirma que el pipeline funciona antes de esperar triggers
 App.run(user_loop=loop)

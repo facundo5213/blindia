@@ -1,17 +1,18 @@
-"""Common interface for anything that can fire a capture event."""
+"""Interfaz común para cualquier cosa que pueda disparar un evento de captura."""
 from abc import ABC, abstractmethod
 
 
 class Trigger(ABC):
-    """A blocking source of capture events.
+    """Una fuente bloqueante de eventos de captura.
 
-    Implementations differ only in *what* they wait for (a keypress relayed
-    from the host, a physical button read via the Bridge, a web request...).
-    Whatever runs after `wait()` returns (main.py's capture call) never
-    needs to change when the event source changes.
+    Las implementaciones difieren solo en *qué* esperan (una tecla
+    relayada desde el host, un pulsador físico leído vía el Bridge, un
+    request web...). Lo que corre después de que `wait()` retorna (la
+    llamada de captura de main.py) nunca necesita cambiar cuando cambia la
+    fuente del evento.
     """
 
     @abstractmethod
     def wait(self) -> None:
-        """Block until the next trigger event fires."""
+        """Bloquea hasta que dispare el próximo evento de trigger."""
         raise NotImplementedError

@@ -1,1 +1,1 @@
-"""Sources of capture events (keyboard today, physical button later)."""
+"""Fuentes de eventos de captura (el pulsador físico, con FIFO de teclado como respaldo para testing)."""

@@ -1,10 +1,11 @@
-"""Turns raw OCR text into a structured, best-effort product identification.
+"""Convierte texto crudo de OCR en una identificación de producto estructurada, best-effort.
 
-This is the MVP's whole product-recognition step: a price label's printed
-text (brand + name + price) already identifies the product for the common
-case, so there is no visual recognition model here. See the project README
-("Product recognition") for the alternatives that were evaluated and
-deferred instead of implemented.
+Esta es toda la etapa de reconocimiento de producto del MVP: el texto
+impreso de una etiqueta de precio (marca + nombre + precio) ya identifica
+el producto en el caso común, así que no hay ningún modelo de
+reconocimiento visual acá. Ver el README del proyecto ("Reconocimiento de
+producto") para las alternativas que se evaluaron y se dejaron para más
+adelante en vez de implementarlas.
 """
 from __future__ import annotations
 
@@ -12,26 +13,27 @@ import re
 
 from ..models import OcrResult, RecognizedProduct
 
-# Matches "$1.549,90", "$1549.90", "$5", etc. Kept as the exact printed
-# substring (see RecognizedProduct.price) instead of being normalized to a
-# number, since thousands/decimal separators are locale-dependent.
+# Matchea "$1.549,90", "$1549.90", "$5", etc. Se guarda como la subcadena
+# impresa exacta (ver RecognizedProduct.price) en vez de normalizarla a un
+# número, ya que los separadores de miles/decimales dependen del locale.
 _PRICE_PATTERN = re.compile(r"\$\s?\d[\d.,]*")
 
 
 def parse_product(ocr_result: OcrResult) -> RecognizedProduct:
-    """Extract a best-effort product name and price from OCR text.
+    """Extrae un nombre de producto y precio best-effort del texto de OCR.
 
-    Heuristic only: `price` is the first `$`-prefixed number found in the
-    text; `name` is what remains after removing price fragments. Either can
-    end up `None` if nothing matched.
+    Solo heurística: `price` es el primer número con prefijo `$` encontrado
+    en el texto; `name` es lo que queda después de sacar los fragmentos de
+    precio. Cualquiera de los dos puede quedar en `None` si no matcheó nada.
 
-    When no price is found, `name` ends up being the full OCR text (minus
-    nothing, since there's no price to strip) -- read verbatim by
-    `describe_product` even if long. A shorter heuristic name was tried here
-    (single longest OCR fragment) to cut down `hablar()` time in that case,
-    but was reverted: reading everything the OCR actually saw is preferred
-    over a guess that can pick a misleading fragment, even at the cost of a
-    longer spoken response.
+    Cuando no se encuentra un precio, `name` termina siendo el texto
+    completo del OCR (sin sacar nada, ya que no hay precio que remover) --
+    leído textual por `describe_product` aunque sea largo. Se probó acá un
+    nombre heurístico más corto (el fragmento individual más largo del
+    OCR) para bajar el tiempo de `hablar()` en ese caso, pero se revirtió:
+    leer todo lo que el OCR realmente vio se prefiere por sobre una
+    adivinanza que puede elegir un fragmento engañoso, aunque cueste una
+    respuesta hablada más larga.
     """
     text = ocr_result.text.strip()
 
@@ -44,10 +46,10 @@ def parse_product(ocr_result: OcrResult) -> RecognizedProduct:
 
 
 def describe_product(product: RecognizedProduct) -> str:
-    """Turn a `RecognizedProduct` into a spoken-friendly sentence for `hablar()`.
+    """Convierte un `RecognizedProduct` en una frase apta para hablar con `hablar()`.
 
-    Falls back to the raw OCR text when neither `name` nor `price` matched,
-    since that's still more useful to the user than staying silent.
+    Cae al texto crudo del OCR cuando no matcheó ni `name` ni `price`, ya
+    que eso sigue siendo más útil para el usuario que quedarse en silencio.
     """
     if product.name and product.price:
         return f"{product.name}, {product.price}"

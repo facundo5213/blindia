@@ -1,30 +1,30 @@
-"""Exceptions shared by the Blind IA capture pipeline.
+"""Excepciones compartidas por el pipeline de captura de Blind IA.
 
-Callers (e.g. the future physical-button handler) can catch the common
-`BlindIAError` base to report any capture failure over audio without
-needing to know which stage of the pipeline failed.
+Quien llama (ej. el manejador del pulsador físico) puede atrapar la base
+común `BlindIAError` para reportar cualquier falla de captura por audio sin
+necesitar saber qué etapa del pipeline falló.
 """
 
 
 class BlindIAError(Exception):
-    """Base class for all Blind IA application errors."""
+    """Clase base para todos los errores de la app Blind IA."""
 
 
 class CameraUnavailableError(BlindIAError):
-    """The camera could not be opened: not connected, or already in use."""
+    """No se pudo abrir la cámara: no está conectada, o ya está en uso."""
 
 
 class CaptureFailedError(BlindIAError):
-    """The camera was open but failed to deliver a usable frame."""
+    """La cámara estaba abierta pero no llegó a entregar un frame usable."""
 
 
 class ImageSaveError(BlindIAError):
-    """A captured frame could not be persisted to disk."""
+    """No se pudo persistir a disco un frame capturado."""
 
 
 class OcrUnavailableError(BlindIAError):
-    """The OCR engine failed to load, or was used before `start()`."""
+    """El motor de OCR falló al cargar, o se usó antes de `start()`."""
 
 
 class OcrFailedError(BlindIAError):
-    """The OCR engine was loaded but failed to process an image."""
+    """El motor de OCR estaba cargado pero falló al procesar una imagen."""

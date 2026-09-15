@@ -1,4 +1,4 @@
-"""Shared data structures passed between Blind IA modules."""
+"""Estructuras de datos compartidas entre los módulos de Blind IA."""
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -8,11 +8,11 @@ import numpy as np
 
 @dataclass(frozen=True, eq=False)
 class CaptureResult:
-    """Result of a single on-demand image capture.
+    """Resultado de una sola captura de imagen bajo demanda.
 
-    Carries both the saved file path (for modules that read from disk) and
-    the in-memory frame (so the OCR module can reuse it without a redundant
-    disk read in the same process).
+    Lleva tanto la ruta del archivo guardado (para módulos que leen de
+    disco) como el frame en memoria (para que el módulo de OCR lo pueda
+    reusar sin una lectura de disco redundante en el mismo proceso).
     """
 
     image_path: Path
@@ -22,11 +22,12 @@ class CaptureResult:
 
 @dataclass(frozen=True, eq=False)
 class OcrResult:
-    """Result of running OCR on one frame.
+    """Resultado de correr OCR sobre un frame.
 
-    `fragments` keeps the individual text boxes the engine found (reading
-    order, top to bottom); `text` is them joined with spaces for convenience
-    when a caller (e.g. the future audio module) just wants one string.
+    `fragments` guarda los cuadros de texto individuales que encontró el
+    motor (en orden de lectura, de arriba hacia abajo); `text` es la unión
+    de esos fragmentos con espacios, como comodidad para cuando quien llama
+    (ej. el módulo de audio) solo quiere un string.
     """
 
     text: str
@@ -35,16 +36,16 @@ class OcrResult:
 
 @dataclass(frozen=True, eq=False)
 class RecognizedProduct:
-    """Best-effort product identification, parsed from `OcrResult.text`.
+    """Identificación de producto best-effort, parseada de `OcrResult.text`.
 
-    `name` and `price` are heuristically extracted (see
-    `blindia.product.parser`) and may be `None` if nothing matched.
-    `raw_text` is always kept so a caller (e.g. the future audio module) can
-    fall back to reading it verbatim when parsing comes up empty.
+    `name` y `price` se extraen heurísticamente (ver
+    `blindia.product.parser`) y pueden quedar en `None` si no matcheó nada.
+    `raw_text` siempre se conserva para que quien llama (ej. el módulo de
+    audio) pueda caer a leerlo textual cuando el parseo no encuentra nada.
 
-    `price` is kept as the exact printed substring (e.g. "$1.549,90"),
-    not parsed into a number: thousands/decimal separators are
-    locale-dependent, and misreading an amount is worse than not parsing it.
+    `price` se guarda como la subcadena impresa exacta (ej. "$1.549,90"),
+    no parseada a un número: los separadores de miles/decimales dependen
+    del locale, y leer mal un monto es peor que no parsearlo.
     """
 
     raw_text: str

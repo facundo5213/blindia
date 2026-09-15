@@ -1,1 +1,1 @@
-"""Persistence of captured images to local storage."""
+"""Persistencia de imágenes capturadas a almacenamiento local."""

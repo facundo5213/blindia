@@ -142,7 +142,7 @@ def configurar_salida_default() -> bool:
     """Le pide al daemon que reconfigure la salida de audio por defecto ahora mismo.
 
     `hablar()` ya hace esto antes de cada síntesis; se expone acá aparte
-    solo para chequeos manuales (ver README, "Testing on the real board").
+    solo para chequeos manuales (ver docs/DEVELOPMENT.md, "Probando en la placa real").
     """
     respuesta = _pedir({"cmd": "configurar_salida_default"}, timeout=_TIMEOUT_CONSULTA_SEGUNDOS)
     return bool(respuesta and respuesta.get("bluetooth"))

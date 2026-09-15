@@ -1,8 +1,8 @@
-"""High-level, reusable entry point: trigger -> capture -> save.
+"""Punto de entrada reutilizable de alto nivel: trigger -> captura -> guardado.
 
-This is the single call future triggers (the physical button, wired later
-through the Bridge) should make. Downstream modules (OCR, product
-recognition, audio) consume the `CaptureResult` it returns.
+Esta es la única llamada que deben hacer los triggers (el pulsador físico,
+vía el Bridge). Los módulos siguientes (OCR, reconocimiento de producto,
+audio) consumen el `CaptureResult` que devuelve.
 """
 from __future__ import annotations
 
@@ -18,19 +18,19 @@ logger = Logger(__name__)
 
 
 class CapturePipeline:
-    """Composes camera capture and image persistence into one call."""
+    """Compone la captura de cámara y la persistencia de imagen en una sola llamada."""
 
     def __init__(self, camera: CameraCaptureService, store: ImageStore) -> None:
         self._camera = camera
         self._store = store
 
     def capture(self) -> CaptureResult:
-        """Capture one frame and persist it.
+        """Captura un frame y lo persiste.
 
         Raises:
-            BlindIAError: (or a subclass) if the camera or the disk write
-                fails; callers should catch this and report the failure
-                over audio instead of crashing the app.
+            BlindIAError: (o una subclase) si falla la cámara o la
+                escritura a disco; quien llama debería atrapar esto y
+                reportar la falla por audio en vez de tirar abajo la app.
         """
         frame = self._camera.capture_frame()
         path = self._store.save(frame)

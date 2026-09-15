@@ -1,8 +1,8 @@
-"""Robust ownership of the camera peripheral.
+"""Dueño robusto del periférico de cámara.
 
-Kept open for the app's lifetime rather than reopened on every capture, so a
-future button press only pays the cost of `capture_frame()`, not a full
-camera re-init.
+Se mantiene abierta durante toda la vida de la app en vez de reabrirla en
+cada captura, así un apretón del botón solo paga el costo de
+`capture_frame()`, no una reinicialización completa de la cámara.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ logger = Logger(__name__)
 
 
 class CameraCaptureService:
-    """Owns a `Camera` peripheral and exposes a single on-demand capture call."""
+    """Es dueño de un periférico `Camera` y expone una sola llamada de captura bajo demanda."""
 
     def __init__(self, settings: CameraSettings) -> None:
         self._settings = settings
@@ -25,15 +25,15 @@ class CameraCaptureService:
 
     @property
     def is_started(self) -> bool:
-        """Whether the camera has been successfully started."""
+        """Si la cámara se arrancó con éxito."""
         return self._camera is not None and self._camera.is_started()
 
     def start(self) -> None:
-        """Open and start the camera. Safe to call once at app startup.
+        """Abre y arranca la cámara. Seguro de llamar una sola vez al arrancar la app.
 
         Raises:
-            CameraUnavailableError: the camera is missing, disconnected, or
-                already claimed by another process.
+            CameraUnavailableError: la cámara falta, está desconectada, o ya
+                está tomada por otro proceso.
         """
         if self._camera is not None:
             logger.debug("Camera already started, ignoring duplicate start()")
@@ -54,7 +54,7 @@ class CameraCaptureService:
                 "ninguna otra app la este usando."
             ) from exc
         except Exception as exc:
-            # Covers "no camera found" raised at construction time, before start().
+            # Cubre "no camera found" lanzado en tiempo de construcción, antes de start().
             logger.error(f"Unexpected error while opening the camera: {exc}")
             raise CameraUnavailableError("No se detecto ninguna camara conectada.") from exc
 
@@ -65,7 +65,7 @@ class CameraCaptureService:
         )
 
     def stop(self) -> None:
-        """Stop and release the camera. Safe to call even if never started."""
+        """Detiene y libera la cámara. Seguro de llamar aunque nunca se haya arrancado."""
         if self._camera is None:
             return
         self._camera.stop()
@@ -73,14 +73,14 @@ class CameraCaptureService:
         logger.info("Camera stopped")
 
     def capture_frame(self) -> np.ndarray:
-        """Capture a single raw frame on demand (e.g. on a button press).
+        """Captura un solo frame crudo bajo demanda (ej. en un apretón de botón).
 
         Returns:
-            The captured frame as a BGR numpy array.
+            El frame capturado como un array numpy BGR.
 
         Raises:
-            CameraUnavailableError: called before a successful `start()`.
-            CaptureFailedError: the camera failed to deliver a frame.
+            CameraUnavailableError: se llamó antes de un `start()` exitoso.
+            CaptureFailedError: la cámara falló al entregar un frame.
         """
         if self._camera is None:
             raise CameraUnavailableError("La camara no fue inicializada (llama a start() primero).")

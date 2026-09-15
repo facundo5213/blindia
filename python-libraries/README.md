@@ -1,40 +1,44 @@
-# Why a patched rapidocr wheel lives here
+# Por qué vive acá un wheel parcheado de rapidocr
 
-`blindia.ocr` uses [RapidOCR](https://github.com/RapidAI/RapidOCR) (ONNXRuntime
-backend, PP-OCRv5 mobile weights) for text extraction. It was chosen over the
-alternatives after benchmarking directly on this board's actual app container:
+`blindia.ocr` usa [RapidOCR](https://github.com/RapidAI/RapidOCR) (backend
+ONNXRuntime, pesos PP-OCRv5 mobile) para extracción de texto. Se eligió por
+sobre las alternativas después de benchmarkear directamente en el contenedor
+real de la app en esta placa:
 
-- **Tesseract**: fastest and lightest in isolation, but requires an external
-  `tesseract` system binary. This app framework only supports installing
-  PyPI packages (`python/requirements.txt`), with no supported mechanism to
-  add OS packages to the container -- so it can't be deployed here.
-- **Native PaddleOCR** (`paddlepaddle`): its generic aarch64 wheel crashes
-  with SIGSEGV on this board's CPU, which is missing the `asimddp`/`fphp`
-  ARMv8.2 SIMD extensions the wheel's kernels assume.
-- **RapidOCR**: pure pip-installable, ONNXRuntime backend avoids the SIMD
-  crash. Confirmed working in-container. ~2-3s/image, ~500MB RAM peak.
+- **Tesseract**: el más rápido y liviano en aislamiento, pero requiere un
+  binario `tesseract` externo del sistema. Este framework de apps solo
+  soporta instalar paquetes de PyPI (`python/requirements.txt`), sin ningún
+  mecanismo soportado para agregar paquetes del sistema operativo al
+  contenedor -- así que no se puede desplegar acá.
+- **PaddleOCR nativo** (`paddlepaddle`): su wheel genérico aarch64 crashea
+  con SIGSEGV en la CPU de esta placa, a la que le faltan las extensiones
+  SIMD `asimddp`/`fphp` de ARMv8.2 que asumen los kernels del wheel.
+- **RapidOCR**: instalable puramente por pip, el backend ONNXRuntime evita
+  el crash de SIMD. Confirmado funcionando dentro del contenedor. ~2-3s por
+  imagen, ~500MB de pico de RAM.
 
-## The wheel patch
+## El parche del wheel
 
-RapidOCR's PyPI metadata hard-requires `opencv_python` (the GUI build, which
-needs `libGL.so.1`). This app's base image only has `opencv-python-headless`
-preinstalled (no `libGL.so.1`, and no supported way to add it). A plain
-`requirements.txt` entry for `rapidocr` makes `uv pip install` fetch the GUI
-`opencv_python` as a transitive dependency, which then shadows the working
-headless `cv2` already on the system path -- breaking every import with
+Los metadatos de PyPI de RapidOCR exigen a la fuerza `opencv_python` (la
+build con GUI, que necesita `libGL.so.1`). La imagen base de esta app solo
+tiene preinstalado `opencv-python-headless` (sin `libGL.so.1`, y sin forma
+soportada de agregarlo). Una entrada común de `requirements.txt` para
+`rapidocr` hace que `uv pip install` traiga `opencv_python` (la GUI) como
+dependencia transitiva, que después tapa el `cv2` headless que ya funciona
+en el path del sistema -- rompiendo todos los imports con
 `ImportError: libGL.so.1: cannot open shared object file`.
 
-`rapidocr-3.9.2-py3-none-any.whl` here is the unmodified upstream wheel with
-one line removed from its `METADATA` (`Requires-Dist: opencv_python>=...`).
-It's a pure-Python package -- nothing in its actual code changed, only the
-dependency declaration pip/uv reads. `run.sh` installs local wheels from this
-`python-libraries/` folder (see the base image's `/run.sh`), so it picks this
-up instead of fetching the real `rapidocr` from PyPI. Its other real
-dependencies (`onnxruntime`, `pyclipper`, `Shapely`, `PyYAML`, `tqdm`,
-`omegaconf`, `colorlog`, `numpy`, `Pillow`, `requests`) are untouched and
-still resolve normally.
+`rapidocr-3.9.2-py3-none-any.whl` acá es el wheel original de upstream sin
+modificar, con una sola línea sacada de su `METADATA`
+(`Requires-Dist: opencv_python>=...`). Es un paquete puro Python -- nada de
+su código real cambió, solo la declaración de dependencias que lee pip/uv.
+`run.sh` instala wheels locales desde esta carpeta `python-libraries/` (ver
+el `/run.sh` de la imagen base), así que toma este en vez de bajar el
+`rapidocr` real de PyPI. Sus otras dependencias reales (`onnxruntime`,
+`pyclipper`, `Shapely`, `PyYAML`, `tqdm`, `omegaconf`, `colorlog`, `numpy`,
+`Pillow`, `requests`) quedan intactas y siguen resolviendo normalmente.
 
-**If rapidocr is ever upgraded**, redo the patch: download the new wheel
-(`pip download --no-deps rapidocr`), remove the `Requires-Dist: opencv_python`
-line from `*.dist-info/METADATA`, repack it (`python -m wheel pack <dir>`),
-and replace this file.
+**Si alguna vez se actualiza rapidocr**, rehacer el parche: bajar el wheel
+nuevo (`pip download --no-deps rapidocr`), sacar la línea
+`Requires-Dist: opencv_python` de `*.dist-info/METADATA`, reempaquetarlo
+(`python -m wheel pack <dir>`), y reemplazar este archivo.

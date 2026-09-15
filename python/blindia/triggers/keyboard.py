@@ -1,17 +1,17 @@
-"""Temporary manual trigger, used until the physical button is wired.
+"""Trigger manual temporal, usado como respaldo del pulsador físico para testing.
 
-The app runs inside a container with no attached TTY, so reading
-`sys.stdin` directly inside the app process never sees a keypress typed on
-the host. Instead this trigger blocks on a FIFO (named pipe) under the
-app's data directory; opening a FIFO for reading blocks until *something*
-writes to it, which is the same "block until an event happens" contract a
-GPIO button read will have later.
+La app corre dentro de un contenedor sin TTY adjunta, así que leer
+`sys.stdin` directamente dentro del proceso de la app nunca ve una tecla
+tipeada en el host. En cambio este trigger bloquea sobre un FIFO (pipe con
+nombre) bajo el directorio de datos de la app; abrir un FIFO para lectura
+bloquea hasta que *algo* le escribe, que es el mismo contrato de "bloquear
+hasta que pase un evento" que tiene la lectura de un botón GPIO.
 
-From a host/adb/SSH shell, fire one capture with:
+Desde una shell host/adb/SSH, disparar una captura con:
 
     echo > ~/ArduinoApps/blindia/data/trigger
 
-or run `scripts/trigger.sh` from the app root.
+o correr `scripts/trigger.sh` desde la raíz de la app.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ logger = Logger(__name__)
 
 
 class KeyboardTrigger(Trigger):
-    """Fires a capture each time something is written to a FIFO file."""
+    """Dispara una captura cada vez que se escribe algo a un archivo FIFO."""
 
     def __init__(self, fifo_path: Path) -> None:
         self._fifo_path = fifo_path
@@ -40,10 +40,11 @@ class KeyboardTrigger(Trigger):
         logger.info(f"Created trigger FIFO at {self._fifo_path}")
 
     def wait(self) -> None:
-        """Block until a writer opens and writes to the FIFO, then return."""
-        # Opening a FIFO for reading blocks until a writer connects; the
-        # writer closing (e.g. `echo` returning) then delivers EOF, so this
-        # naturally unblocks once per external trigger.
+        """Bloquea hasta que un escritor abre y escribe al FIFO, y entonces retorna."""
+        # Abrir un FIFO para lectura bloquea hasta que se conecta un
+        # escritor; cuando el escritor cierra (ej. que `echo` retorne) eso
+        # entrega EOF, así que esto se desbloquea naturalmente una vez por
+        # cada trigger externo.
         with self._fifo_path.open("r") as fifo:
             fifo.readline()
         logger.debug("Trigger FIFO fired")

@@ -1,1 +1,1 @@
-"""Structured product identification, parsed from OCR text."""
+"""Identificación estructurada de producto, parseada del texto de OCR."""

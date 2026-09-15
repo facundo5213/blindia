@@ -1,10 +1,11 @@
-"""Physical button trigger, wired via the Router Bridge.
+"""Trigger de pulsador físico, conectado vía el Router Bridge.
 
-The MCU sketch (`sketch/sketch.ino`) debounces the raw digitalRead() on D2
-and calls `Bridge.notify("boton_presionado")` once per valid press -- never
-once per contact bounce. This trigger just waits on a threading.Event set by
-that handler, the same block-until-event contract every other Trigger
-implementation follows.
+El sketch del MCU (`sketch/sketch.ino`) hace debounce del digitalRead()
+crudo en D2 y llama a `Bridge.notify("boton_presionado")` una vez por
+pulsación válida -- nunca una vez por rebote de contacto. Este trigger solo
+espera sobre un threading.Event seteado por ese handler, el mismo contrato
+de bloquear-hasta-el-evento que sigue cualquier otra implementación de
+Trigger.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ logger = Logger(__name__)
 
 
 class ButtonTrigger(Trigger):
-    """Fires a capture each time the MCU reports a debounced button press."""
+    """Dispara una captura cada vez que el MCU reporta una pulsación de botón ya con debounce."""
 
     def __init__(self) -> None:
         self._event = threading.Event()
@@ -29,6 +30,6 @@ class ButtonTrigger(Trigger):
         self._event.set()
 
     def wait(self) -> None:
-        """Block until the MCU notifies a press, then return."""
+        """Bloquea hasta que el MCU notifica una pulsación, y entonces retorna."""
         self._event.wait()
         self._event.clear()

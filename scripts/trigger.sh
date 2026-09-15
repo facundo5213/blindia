@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fires one capture on the running BlindIA app -- temporary stand-in for the
-# physical button. Run from anywhere; requires the app to be started.
+# Dispara una captura en la app BlindIA en ejecución -- respaldo temporal
+# del pulsador físico. Correr desde cualquier lado; requiere que la app esté arrancada.
 set -euo pipefail
 
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

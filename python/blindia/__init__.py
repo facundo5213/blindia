@@ -1,1 +1,1 @@
-"""Blind IA application package."""
+"""Paquete de la app Blind IA."""
