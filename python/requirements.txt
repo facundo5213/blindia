@@ -1,0 +1,6 @@
+# rapidocr itself ships as a patched local wheel in ../python-libraries/
+# (see that folder's README) -- it and its real dependencies (opencv is
+# provided by the base image, not listed here) get installed from there.
+# onnxruntime is rapidocr's inference backend; not in its own metadata
+# because rapidocr supports swappable backends, so it's listed explicitly.
+onnxruntime

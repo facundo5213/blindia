@@ -1,0 +1,16 @@
+[Unit]
+Description=BlindIA - daemon de audio Bluetooth (bluetoothctl, wpctl, espeak-ng)
+Documentation=file:///home/arduino/ArduinoApps/blindia/docs/DEVELOPMENT.md
+After=pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=%h/ArduinoApps/blindia/scripts/.venv-piper/bin/python3 %h/ArduinoApps/blindia/scripts/bluetooth_audio_daemon.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

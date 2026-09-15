@@ -1,0 +1,29 @@
+# ignore app cache folder
+.cache/
+
+# captured photos (local test data, not source)
+data/captures/
+
+# Piper TTS venv (host-only, see README "Voz: Piper TTS") and downloaded
+# voice model (binary asset, ~60MB, fetched by the install steps instead)
+scripts/.venv-piper/
+data/piper/
+
+# any other virtualenv, wherever it ends up
+.venv/
+venv/
+*.egg-info/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# runtime IPC files auto-created by the app/daemon on startup (FIFO trigger,
+# Unix socket) -- not source, and git can't track a fifo/socket meaningfully
+data/trigger
+data/bluetooth_audio.sock
+
+# Claude Code local machine settings (permissions etc.) -- personal to this
+# board/user, not project config; see .claude/settings.json if one exists
+# for settings meant to be shared
+.claude/settings.local.json
