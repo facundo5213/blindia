@@ -14,11 +14,12 @@ from arduino.app_utils import App, Logger
 
 from blindia.audio.bluetooth_audio import hablar
 from blindia.capture.service import CameraCaptureService
-from blindia.config import CAPTURES_DIR, CameraSettings, OcrSettings
+from blindia.config import CAPTURES_DIR, CameraSettings, OcrSettings, VisionFallbackSettings
 from blindia.exceptions import BlindIAError
 from blindia.ocr.service import OcrService
 from blindia.pipeline import CapturePipeline
-from blindia.product.parser import describe_product, parse_product
+from blindia.product.parser import describe_product, ocr_tiene_sentido, parse_product
+from blindia.product.vision_fallback import identificar_producto_remoto
 from blindia.storage.image_store import ImageStore
 from blindia.triggers.button import ButtonTrigger
 
@@ -27,7 +28,9 @@ logger = Logger(__name__)
 camera_service = CameraCaptureService(CameraSettings())
 image_store = ImageStore(CAPTURES_DIR)
 pipeline = CapturePipeline(camera_service, image_store)
-ocr_service = OcrService(OcrSettings())
+ocr_settings = OcrSettings()
+ocr_service = OcrService(ocr_settings)
+vision_fallback_settings = VisionFallbackSettings()
 trigger = ButtonTrigger()
 
 try:
@@ -69,6 +72,31 @@ def run_capture(reason: str) -> None:
     except BlindIAError as exc:
         logger.error(f"[{reason}] OCR failed: {exc}")
         return
+
+    if not ocr_tiene_sentido(
+        ocr_result.text,
+        min_letras=ocr_settings.min_letras_para_tener_sentido,
+        max_ratio_transiciones=ocr_settings.max_ratio_transiciones_capitalizacion,
+    ):
+        # El OCR no encontró nada de texto, o encontró muy poco como para
+        # identificar un producto (ver `ocr_tiene_sentido`) -- no es el
+        # caso "hay texto real pero no hay precio", que lo resuelve
+        # parse_product más abajo sin llamar a ningún servidor. Acá sí vale
+        # la pena el viaje de red al servidor de reconocimiento visual
+        # remoto -- ver docs/DEVELOPMENT.md, "Reconocimiento de producto".
+        t0 = time.perf_counter()
+        mensaje_remoto = identificar_producto_remoto(result.frame, vision_fallback_settings)
+        logger.info(f"[timing] vision_fallback: {(time.perf_counter() - t0) * 1000:.0f}ms")
+
+        if mensaje_remoto is not None:
+            logger.info(f"[{reason}] Identificado por respaldo remoto: {mensaje_remoto!r}")
+            t0 = time.perf_counter()
+            hablar(mensaje_remoto)
+            logger.info(f"[timing] hablar_total (sintesis+IPC+reproduccion): {(time.perf_counter() - t0) * 1000:.0f}ms")
+            logger.info(f"[timing] TOTAL: {(time.perf_counter() - t_inicio) * 1000:.0f}ms")
+            return
+
+        logger.warning(f"[{reason}] Respaldo remoto no disponible o falló -- usando mensaje de reserva.")
 
     t0 = time.perf_counter()
     product = parse_product(ocr_result)

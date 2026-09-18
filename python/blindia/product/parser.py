@@ -19,6 +19,52 @@ from ..models import OcrResult, RecognizedProduct
 _PRICE_PATTERN = re.compile(r"\$\s?\d[\d.,]*")
 
 
+def _ratio_transiciones_capitalizacion(texto: str) -> float:
+    """Fracción de pares de letras consecutivas donde cambia mayúscula/minúscula.
+
+    Texto real de producto (marca, ingredientes) está en MAYÚSCULA,
+    Título, o minúscula -- nunca alternando letra por letra. Un ratio alto
+    acá es la firma de un misread de OCR sobre una textura/patrón (ver
+    docs/DEVELOPMENT.md, "Reconocimiento de producto", para el caso real
+    que motivó esto: "sDpIpD" leído sobre la cáscara de una fruta).
+    """
+    letras = [c for c in texto if c.isalpha()]
+    if len(letras) < 2:
+        return 0.0
+    transiciones = sum(1 for a, b in zip(letras, letras[1:]) if a.isupper() != b.isupper())
+    return transiciones / (len(letras) - 1)
+
+
+def ocr_tiene_sentido(texto: str, *, min_letras: int, max_ratio_transiciones: float) -> bool:
+    """Decide si el texto detectado por OCR alcanza para identificar un producto.
+
+    Un precio válido (`$...`) siempre "tiene sentido" sin importar cuán
+    corto sea el resto del texto -- ej. `"$450"` son 4 caracteres pero es
+    perfectamente útil. Si no hay precio, se aplican dos filtros:
+
+    1. Cantidad de letras alfabéticas (no caracteres totales: dígitos/
+       guiones/puntuación no cuentan) contra `min_letras`.
+    2. Ratio de transiciones de capitalización entre letras consecutivas
+       (ver `_ratio_transiciones_capitalizacion`): más del 50% marca texto
+       sin sentido, sin importar cuántas letras tenga.
+
+    Por qué estas dos señales y no score de confianza ni ratio de vocales
+    (las dos alternativas probadas y descartadas con datos reales de esta
+    placa): el score no separa señal de ruido (texto de fondo irrelevante
+    salió con confianza tan alta como texto real de producto), y el ratio
+    de vocales daba falsos positivos con marcas reales de supermercado
+    ("KRAFT" 20% vocales, "McDonald's" 22%, ambas por debajo de cualquier
+    corte razonable). Ver docs/DEVELOPMENT.md, "Reconocimiento de
+    producto", para el proceso completo de validación (8 casos).
+    """
+    if _PRICE_PATTERN.search(texto):
+        return True
+    letras = sum(1 for c in texto if c.isalpha())
+    if letras < min_letras:
+        return False
+    return _ratio_transiciones_capitalizacion(texto) <= max_ratio_transiciones
+
+
 def parse_product(ocr_result: OcrResult) -> RecognizedProduct:
     """Extrae un nombre de producto y precio best-effort del texto de OCR.
 

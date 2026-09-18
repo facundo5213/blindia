@@ -86,9 +86,126 @@ deliberadamente **no** implementarlas en este MVP:
   provisionada, y tiene un costo variable por uso que el proyecto no quiere
   asumir todavía.
 
-El paso natural siguiente, si/cuando se retoma esto: activar el respaldo en
-la nube solo cuando `RecognizedProduct.name`/`price` vuelvan `None` (el OCR
-no encontró nada usable), en vez de llamarlo en cada captura.
+### Respaldo remoto de reconocimiento visual (implementado 2026-09-15)
+
+En vez del respaldo en la nube de arriba, se implementó una variante que
+evita sus dos problemas principales (API key provisionada, costo variable
+por uso): la placa le habla a un **servidor FastAPI propio, corriendo en la
+PC del usuario** dentro de la misma red WiFi local, que a su vez le habla
+internamente a LM Studio (modelo Gemma) para el reconocimiento visual en
+sí. Esa parte (servidor FastAPI + LM Studio) es responsabilidad de un
+proyecto aparte, no de este repo -- acá solo vive el cliente HTTP que la
+placa usa para llamarlo.
+
+**Por qué esta variante y no la del Brick `cloud_llm`**: mismo beneficio
+(reconocimiento real de marca/producto sin texto legible) sin depender de
+un proveedor externo ni de una API key -- todo el procesamiento pesado
+sigue corriendo en hardware del usuario (su PC), no en la nube. El costo es
+que la PC tiene que estar prendida y alcanzable en la red local, y su IP
+(dinámica) hay que actualizarla a mano cuando cambia.
+
+**Cuándo se dispara** (ampliado 2026-09-18): cuando el OCR no detecta
+texto en absoluto, **o** detecta muy poco como para identificar un
+producto -- `blindia.product.parser.ocr_tiene_sentido()` decide esto
+contando **letras alfabéticas** (no caracteres totales) en el texto
+detectado, comparándolas contra `OcrSettings.min_letras_para_tener_sentido`
+(default: 4). Un precio válido (`$...`) siempre "tiene sentido" sin
+importar cuán corto sea el resto.
+
+Por qué letras y no caracteres totales ni score de confianza de RapidOCR
+(las dos alternativas obvias, descartadas con datos reales de esta placa):
+
+- **Score de confianza no separa ruido de señal**: en una captura donde la
+  cámara agarró de fondo una pantalla con texto (ver "Bluetooth" más abajo
+  para otro efecto secundario de ese mismo encuadre), los fragmentos de esa
+  pantalla -- texto real, nítido, pero irrelevante para el producto --
+  salieron con confianza 0.94-1.00, igual o más alta que el texto real del
+  producto en la misma imagen. Un umbral de score no habría filtrado nada.
+- **Caracteres totales penaliza detecciones cortas pero válidas**: un
+  umbral de 15 caracteres totales mandaba `"adidas"` (una detección
+  correcta de una sola palabra, 6 caracteres) al mismo camino que `"01"` o
+  `"-"` (ruido sin sentido). Contando solo letras alfabéticas, `"01"` y
+  `"-"` dan 0 letras (van al respaldo remoto) y `"adidas"` da 6 (se queda
+  local, como hoy) -- el mismo corte separa ambos casos correctamente.
+
+El caso "hay texto real pero no se encontró un precio con `$`" sigue
+siendo un problema distinto, resuelto sin red (se lee el texto completo
+detectado -- ver "Reconocimiento de producto" más arriba); no se mezcla
+con este criterio.
+
+#### Segunda vuelta: ruido con suficientes letras (2026-09-18)
+
+El criterio de arriba (mínimo de letras) no cubre todos los casos. Una
+prueba real con una fruta sin texto (nada que identificar) hizo que el OCR
+leyera `"sDpIpD"` sobre la cáscara -- una lectura sin sentido, pero con 6
+letras (por encima del mínimo de 4), así que el sistema la leyó en voz alta
+tal cual en vez de ir al respaldo remoto.
+
+**Por qué no sirve el score de confianza acá tampoco**: ese fragmento salió
+con confianza 0.770 -- ni bajo ni alto, en el mismo rango que texto real
+parcialmente legible (ej. "ESTP 1877–" salió 0.86-0.90 en pruebas
+anteriores). Confirma otra vez que el score no separa señal de ruido en
+esta placa.
+
+**Segunda señal probada: ratio de vocales.** `"sDpIpD"` tiene 1 vocal en 6
+letras (17%), muy por debajo del ~40-50% típico de una marca real. Pero
+antes de fijar un umbral, se probó contra marcas reales de supermercado
+con capitalización o vocales atípicas, para no fijar un corte que reviente
+casos legítimos:
+
+| Caso | Letras | Transiciones de case | Vocales |
+|---|---|---|---|
+| `-` | 0 | -- | -- |
+| `01` | 0 | -- | -- |
+| `PUMA.` | 4 | 0% | 50% |
+| `QUAKER AVENA INTEGRAL EXTRAFINA` | 28 | 0% | 46% |
+| `sDpIpD` (fruta, ruido real) | 6 | **100%** | **17%** |
+| `PlayStation` (mayúscula interna real) | 11 | 30% | 36% |
+| `McDonald's` (mayúscula interna real) | 9 | 37.5% | **22%** |
+| `iPhone` (minúscula inicial + mayúscula interna) | 6 | 40% | 50% |
+| `KRAFT` (marca real, supermercado) | 5 | 0% | **20%** |
+
+**El ratio de vocales quedó descartado**: `McDonald's` (22%) y `KRAFT`
+(20%) -- dos marcas reales, comunes en un supermercado -- caen por debajo
+de cualquier corte que separe a `sDpIpD` (17%) sin ser demasiado laxo. Un
+umbral de vocales habría mandado esas marcas al respaldo remoto
+innecesariamente.
+
+**El ratio de transiciones de capitalización sí separa todo, sin falsos
+positivos**: texto real de producto está en MAYÚSCULA, Título, o
+minúscula -- nunca alternando case letra por letra. Las tres marcas con
+mayúscula interna legítima (`PlayStation`, `McDonald's`, `iPhone`) quedan
+entre 30-40% de transiciones, lejos del 100% de `sDpIpD`. No hizo falta
+sumar el ratio de vocales.
+
+**Criterio final, `blindia.product.parser.ocr_tiene_sentido()`** (además
+del precio válido, que sigue ganando siempre): el texto "tiene sentido" si
+tiene al menos `OcrSettings.min_letras_para_tener_sentido` (4) letras
+alfabéticas, **y** su ratio de transiciones de capitalización entre
+letras consecutivas no supera `OcrSettings.max_ratio_transiciones_capitalizacion`
+(0.5) -- ver `_ratio_transiciones_capitalizacion()` en el mismo archivo
+para el cálculo exacto.
+
+**Cómo está armado**:
+
+- `blindia/config.py`, `VisionFallbackSettings` -- `host` (IP de la PC,
+  hay que actualizarla a mano cada vez que cambie), `port` (8000, el del
+  servidor FastAPI -- *no* el 1234 de LM Studio, la placa nunca le habla
+  directo a LM Studio), y `timeout_segundos` (corto a propósito).
+- `blindia/product/vision_fallback.py`, `identificar_producto_remoto()` --
+  codifica el frame a JPEG y hace `POST http://<host>:<port>/analyze` con
+  la imagen en un campo de formulario `image`. El servidor devuelve JSON
+  con `producto_detectado`, `confianza_producto`, `precio_leido`,
+  `confianza_precio`, `mensaje_voz` y `tiempo_procesamiento_ms` -- el
+  cliente usa `mensaje_voz` tal cual, ya viene armado como frase hablable,
+  no hace falta reprocesarlo.
+- `main.py`, `run_capture()` -- si `ocr_result.fragments` está vacío, llama
+  al respaldo remoto antes de intentar `parse_product()`. Si el servidor
+  responde bien, habla `mensaje_voz` directo y corta ahí. Si no responde
+  (apagado, timeout, red caída, JSON inesperado) `identificar_producto_remoto()`
+  devuelve `None` y el flujo sigue exactamente como antes (cae al mensaje
+  de reserva "No se detectó texto en la imagen.") -- nunca cuelga el
+  pipeline esperando a la PC.
 
 ## Audio Bluetooth
 

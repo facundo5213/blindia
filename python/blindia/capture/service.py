@@ -75,6 +75,14 @@ class CameraCaptureService:
     def capture_frame(self) -> np.ndarray:
         """Captura un solo frame crudo bajo demanda (ej. en un apretón de botón).
 
+        Descarta `frames_de_calentamiento` lecturas antes de quedarse con
+        la real: la cámara queda abierta e inactiva entre apretones
+        (a veces varios segundos), y el primer `read()` después de un
+        período inactivo puede devolver un frame viejo en vez del actual
+        -- un problema conocido de los drivers V4L2/UVC, que no siempre
+        respetan `CAP_PROP_BUFFERSIZE=1` aunque esté seteado. Ver
+        docs/DEVELOPMENT.md, "Bug: anuncia el producto anterior".
+
         Returns:
             El frame capturado como un array numpy BGR.
 
@@ -86,6 +94,8 @@ class CameraCaptureService:
             raise CameraUnavailableError("La camara no fue inicializada (llama a start() primero).")
 
         try:
+            for _ in range(self._settings.frames_de_calentamiento):
+                self._camera.capture()
             frame = self._camera.capture()
         except CameraReadError as exc:
             logger.error(f"Failed to read a frame: {exc}")

@@ -4,3 +4,8 @@
 # onnxruntime is rapidocr's inference backend; not in its own metadata
 # because rapidocr supports swappable backends, so it's listed explicitly.
 onnxruntime
+
+# usado por blindia.product.vision_fallback para hablarle al servidor
+# remoto de reconocimiento visual. Ya es dependencia transitiva de rapidocr
+# hoy, pero se declara explícito para no depender de algo implícito.
+requests
