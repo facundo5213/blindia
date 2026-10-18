@@ -1,0 +1,16 @@
+[Unit]
+Description=BlindIA - resolutor mDNS del servidor de reconocimiento visual remoto
+Documentation=file:///home/arduino/ArduinoApps/blindia/docs/DEVELOPMENT.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/ArduinoApps/blindia/scripts/server_ip_resolver.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

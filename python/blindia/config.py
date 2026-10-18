@@ -19,6 +19,14 @@ CAPTURES_DIR: Path = APP_ROOT / "data" / "captures"
 # Escribir cualquier cosa a esta ruta desde el host dispara una captura.
 TRIGGER_FIFO_PATH: Path = APP_ROOT / "data" / "trigger"
 
+# Última IP conocida del servidor de reconocimiento visual remoto, resuelta
+# periódicamente por scripts/server_ip_resolver.py (corre en el HOST, igual
+# patrón que el daemon de audio Bluetooth -- el contenedor no puede resolver
+# nombres mDNS/.local, ver docs/DEVELOPMENT.md, "Reconocimiento de
+# producto"). `blindia.product.vision_fallback` lee este archivo en vez de
+# resolver el nombre directo.
+SERVER_IP_FILE: Path = APP_ROOT / "data" / "server_ip.txt"
+
 
 @dataclass(frozen=True)
 class CameraSettings:
@@ -106,9 +114,17 @@ class VisionFallbackSettings:
     vez de un respaldo en la nube).
 
     Attributes:
-        host: IP de la PC del usuario en la red WiFi local. Dinámica (no
-            fija) -- hay que actualizar este valor a mano cada vez que
-            cambie tras reconectarse a la red.
+        host: Nombre mDNS de la PC del usuario en la red WiFi local
+            (confirmado funcionando desde el HOST: `getent hosts
+            blindia-server.local` resuelve bien). El contenedor donde
+            corre la app NO puede resolver nombres mDNS/.local (resolver
+            de DNS aislado del host, sin soporte mdns4 -- confirmado con
+            `docker exec ... getent hosts` fallando), así que este valor
+            NO lo usa `vision_fallback.py` directo: lo usa
+            `scripts/server_ip_resolver.py` (corre en el host, igual
+            patrón que el daemon de audio Bluetooth), que resuelve este
+            nombre cada ~30s y escribe la IP en `SERVER_IP_FILE` -- eso sí
+            lo lee `vision_fallback.py` desde el contenedor.
         port: Puerto del servidor FastAPI (no el de LM Studio -- ese es
             interno al servidor, esta app nunca le habla directo).
         timeout_segundos: Timeout corto a propósito: si el servidor no
@@ -116,6 +132,6 @@ class VisionFallbackSettings:
             mensaje de reserva sin colgarse.
     """
 
-    host: str = "192.168.0.211"  # ACTUALIZAR: IP actual de la PC en la red WiFi
+    host: str = "blindia-server.local"
     port: int = 8000
     timeout_segundos: float = 8.0

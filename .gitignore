@@ -23,6 +23,10 @@ __pycache__/
 data/trigger
 data/bluetooth_audio.sock
 
+# IP resuelta por scripts/server_ip_resolver.py -- estado de runtime
+# específico de esta red/PC, no algo para versionar
+data/server_ip.txt
+
 # Claude Code local machine settings (permissions etc.) -- personal to this
 # board/user, not project config; see .claude/settings.json if one exists
 # for settings meant to be shared

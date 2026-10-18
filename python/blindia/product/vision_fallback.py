@@ -7,6 +7,13 @@ usuario en la red WiFi local (puerto configurable en `blindia.config`,
 (Gemma) para identificar el producto visualmente -- ese trabajo ya está
 resuelto del lado del servidor, este módulo es apenas el cliente HTTP.
 
+La IP del servidor se lee de `SERVER_IP_FILE`, NO se resuelve acá: el
+contenedor donde corre este módulo no puede resolver el nombre mDNS de la
+PC (resolver de DNS aislado del host, confirmado en vivo) -- un proceso
+aparte en el host (`scripts/server_ip_resolver.py`) resuelve el nombre
+periódicamente y escribe la IP en ese archivo. Ver docs/DEVELOPMENT.md,
+"Reconocimiento de producto", para el diagnóstico completo.
+
 Alcance deliberadamente angosto: SOLO se usa cuando el OCR no encontró
 ningún texto en absoluto (0 fragmentos). El caso "hay texto pero no se
 encontró un precio con $" es un problema distinto, ya resuelto sin llamar a
@@ -14,10 +21,10 @@ ningún servidor -- ver `blindia.product.parser` (se lee el texto completo
 detectado). No mezclar los dos casos.
 
 Mismo espíritu que `blindia.audio.bluetooth_audio`: nunca lanza una
-excepción hacia afuera. Cualquier falla (servidor apagado, timeout, red
-caída, respuesta con formato inesperado) se loguea acá y devuelve `None`,
-para que quien llama decida el mensaje de reserva sin necesitar
-try/except.
+excepción hacia afuera. Cualquier falla (archivo de IP inexistente,
+servidor apagado, timeout, red caída, respuesta con formato inesperado) se
+loguea acá y devuelve `None`, para que quien llama decida el mensaje de
+reserva sin necesitar try/except.
 """
 from __future__ import annotations
 
@@ -26,9 +33,21 @@ import numpy as np
 import requests
 from arduino.app_utils import Logger
 
-from ..config import VisionFallbackSettings
+from ..config import SERVER_IP_FILE, VisionFallbackSettings
 
 logger = Logger(__name__)
+
+
+def _leer_ip_servidor() -> str | None:
+    """Lee la última IP resuelta por `scripts/server_ip_resolver.py`, o `None` si todavía no existe."""
+    try:
+        return SERVER_IP_FILE.read_text().strip() or None
+    except FileNotFoundError:
+        logger.warning(
+            f"[vision] {SERVER_IP_FILE} todavía no existe -- ¿está corriendo "
+            "'systemctl --user status blindia-server-ip-resolver' en la placa?"
+        )
+        return None
 
 
 def identificar_producto_remoto(frame: np.ndarray, settings: VisionFallbackSettings) -> str | None:
@@ -39,12 +58,16 @@ def identificar_producto_remoto(frame: np.ndarray, settings: VisionFallbackSetti
     resultado en una frase hablable, no hace falta reprocesarlo acá. Nunca
     lanza: cualquier problema devuelve `None`.
     """
+    ip = _leer_ip_servidor()
+    if ip is None:
+        return None
+
     ok, jpeg = cv2.imencode(".jpg", frame)
     if not ok:
         logger.error("[vision] No se pudo codificar el frame a JPEG para mandarlo al servidor remoto.")
         return None
 
-    url = f"http://{settings.host}:{settings.port}/analyze"
+    url = f"http://{ip}:{settings.port}/analyze"
     try:
         respuesta = requests.post(
             url,
