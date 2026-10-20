@@ -1,0 +1,16 @@
+[Unit]
+Description=BlindIA - daemon de vinculacion por USB (PING/GET_SERIAL/GET_STATUS/SET_CREDENTIALS)
+Documentation=file:///home/arduino/ArduinoApps/blindia/docs/VINCULACION-USB.md
+After=adbd.service
+Wants=adbd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/ArduinoApps/blindia/scripts/usb_vinculacion_daemon.py
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

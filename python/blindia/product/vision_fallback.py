@@ -28,12 +28,16 @@ reserva sin necesitar try/except.
 """
 from __future__ import annotations
 
+from typing import Any
+
 import cv2
 import numpy as np
 import requests
 from arduino.app_utils import Logger
 
 from ..config import SERVER_IP_FILE, VisionFallbackSettings
+from ..models import VisionRemotaResultado
+from .parser import extraer_price_ars
 
 logger = Logger(__name__)
 
@@ -50,13 +54,22 @@ def _leer_ip_servidor() -> str | None:
         return None
 
 
-def identificar_producto_remoto(frame: np.ndarray, settings: VisionFallbackSettings) -> str | None:
+def _price_ars_desde_dato(valor: Any) -> int | None:
+    """Normaliza `precio_leido`: puede venir como número o como texto (ej. "$450") según el servidor."""
+    if isinstance(valor, (int, float)):
+        return int(round(valor))
+    if isinstance(valor, str):
+        return extraer_price_ars(valor)
+    return None
+
+
+def identificar_producto_remoto(frame: np.ndarray, settings: VisionFallbackSettings) -> VisionRemotaResultado | None:
     """Manda `frame` (BGR, igual que devuelve la cámara) al servidor remoto.
 
-    Devuelve el `mensaje_voz` ya armado por el servidor, listo para pasarle
-    directo a `hablar()` -- el servidor ya hace el trabajo de convertir su
-    resultado en una frase hablable, no hace falta reprocesarlo acá. Nunca
-    lanza: cualquier problema devuelve `None`.
+    `mensaje_voz` del resultado ya viene armado por el servidor, listo
+    para pasarle directo a `hablar()` -- el servidor ya hace el trabajo
+    de convertir su resultado en una frase hablable, no hace falta
+    reprocesarlo acá. Nunca lanza: cualquier problema devuelve `None`.
     """
     ip = _leer_ip_servidor()
     if ip is None:
@@ -88,10 +101,16 @@ def identificar_producto_remoto(frame: np.ndarray, settings: VisionFallbackSetti
         logger.error(f"[vision] Respuesta del servidor remoto sin 'mensaje_voz': {datos!r}")
         return None
 
+    producto = datos.get("producto_detectado") or None
+    confianza = datos.get("confianza_producto")
     logger.info(
-        f"[vision] Servidor remoto: producto={datos.get('producto_detectado')!r} "
-        f"(confianza={datos.get('confianza_producto')!r}) "
+        f"[vision] Servidor remoto: producto={producto!r} (confianza={confianza!r}) "
         f"precio={datos.get('precio_leido')!r} (confianza={datos.get('confianza_precio')!r}) "
         f"tiempo_servidor={datos.get('tiempo_procesamiento_ms')!r}ms"
     )
-    return mensaje
+    return VisionRemotaResultado(
+        mensaje_voz=mensaje,
+        producto=producto,
+        price_ars=_price_ars_desde_dato(datos.get("precio_leido")),
+        confianza=confianza if isinstance(confianza, (int, float)) else None,
+    )

@@ -144,6 +144,24 @@ _PATRON_CONNECT_FAIL = re.compile(r"Failed to connect")
 _LOCK_REPRODUCCION = threading.Lock()
 _LOCK_EMPAREJAMIENTO = threading.Lock()
 
+# --- Ajustes de voz aplicables desde la configuración remota del cliente
+#     (ver blindia.backend.remote_config) -----------------------------------
+
+# Por cada velocidad: (multiplicador de longitud para Piper, multiplicador
+# de palabras/minuto para espeak-ng). Piper: más alto = más lento (longitud
+# del clip); espeak-ng: más alto = más rápido (wpm) -- son inversos entre
+# sí, por eso dos multiplicadores separados en vez de uno compartido.
+# Valores elegidos para coincidir con la sugerencia del contrato de la API
+# (≈0.8x / 1.0x / 1.25x de velocidad real).
+_VELOCIDADES_VOZ = {
+    "lenta": (1.25, 0.8),
+    "normal": (1.0, 1.0),
+    "rapida": (0.8, 1.25),
+}
+_velocidad_voz_actual = "normal"
+_volumen_porcentaje: int | None = None  # None = no se fuerza nada -- queda el volumen de fábrica del sistema
+_LOCK_AJUSTES_VOZ = threading.Lock()
+
 
 # =============================================================================
 # Salida de voz
@@ -254,13 +272,17 @@ def _reproducir_con_piper(texto: str, *, vigilar_desconexion: bool) -> bool | No
     if voz is None:
         return None
 
+    with _LOCK_AJUSTES_VOZ:
+        multiplicador_longitud, _ = _VELOCIDADES_VOZ[_velocidad_voz_actual]
+
     wav_path = None
     t0 = time.monotonic()
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             wav_path = tmp.name
         with wave.open(wav_path, "wb") as wav_file:
-            voz.synthesize_wav(texto, wav_file, syn_config=SynthesisConfig(length_scale=_PIPER_LENGTH_SCALE))
+            length_scale = _PIPER_LENGTH_SCALE * multiplicador_longitud
+            voz.synthesize_wav(texto, wav_file, syn_config=SynthesisConfig(length_scale=length_scale))
         logger.info(f"[timing] sintesis_piper: {(time.monotonic() - t0) * 1000:.0f}ms")
     except Exception as exc:  # noqa: BLE001
         logger.error(f"[voz] Síntesis con Piper falló: {exc} -- usando espeak-ng.")
@@ -329,12 +351,15 @@ def _reproducir_con_espeak(texto: str, *, vigilar_desconexion: bool) -> bool:
         )
         return False
 
+    with _LOCK_AJUSTES_VOZ:
+        _, multiplicador_wpm = _VELOCIDADES_VOZ[_velocidad_voz_actual]
+
     try:
         proceso = subprocess.Popen(
             [
                 _ESPEAK_BIN,
                 "-v", _VOZ,
-                "-s", str(_PALABRAS_POR_MINUTO),
+                "-s", str(int(_PALABRAS_POR_MINUTO * multiplicador_wpm)),
                 "-g", str(_PAUSA_ENTRE_PALABRAS),
                 texto,
             ],
@@ -417,7 +442,47 @@ def configurar_salida_default() -> bool:
         return False
 
     logger.info(f"[audio] Salida de audio por defecto: {nodo['descripcion']} (Bluetooth)")
+    _aplicar_volumen_sistema_si_corresponde()
     return True
+
+
+def ajustar_configuracion_voz(volumen: int | None, velocidad: str) -> None:
+    """Aplica volumen (0-100, o `None` para no tocarlo) y velocidad ('lenta'/'normal'/'rapida').
+
+    Llamado desde `_atender_comando` (cmd `ajustar_voz`), a pedido de
+    `blindia.backend.remote_config` al aplicar la configuración remota del
+    cliente. La velocidad se aplica en la próxima síntesis (Piper/espeak-ng
+    la leen en cada llamada); el volumen se aplica ya mismo si hay una
+    salida de audio configurada, además de quedar guardado para cuando
+    `configurar_salida_default()` vuelva a correr (ej. al reconectar
+    auriculares).
+    """
+    global _velocidad_voz_actual, _volumen_porcentaje
+    with _LOCK_AJUSTES_VOZ:
+        if volumen is not None:
+            _volumen_porcentaje = max(0, min(100, int(volumen)))
+        if velocidad in _VELOCIDADES_VOZ:
+            _velocidad_voz_actual = velocidad
+        else:
+            logger.warning(f"[voz] Velocidad desconocida ignorada: {velocidad!r} (se mantiene {_velocidad_voz_actual!r}).")
+
+    _aplicar_volumen_sistema_si_corresponde()
+
+
+def _aplicar_volumen_sistema_si_corresponde() -> None:
+    with _LOCK_AJUSTES_VOZ:
+        porcentaje = _volumen_porcentaje
+    if porcentaje is None:
+        return
+    try:
+        subprocess.run(
+            ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{porcentaje}%"],
+            check=True,
+            timeout=5,
+            capture_output=True,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.error(f"[voz] No se pudo aplicar el volumen ({porcentaje}%): {exc}")
 
 
 def _nodo_sink_bluetooth() -> dict | None:
@@ -604,6 +669,9 @@ def _atender_comando(comando: dict) -> dict:
             return {"ok": True, "conectado": auriculares_conectados()}
         if tipo == "configurar_salida_default":
             return {"ok": True, "bluetooth": configurar_salida_default()}
+        if tipo == "ajustar_voz":
+            ajustar_configuracion_voz(comando.get("volumen"), str(comando.get("velocidad") or "normal"))
+            return {"ok": True}
         if tipo == "emparejar":
             timeout_escaneo = comando.get("timeout_escaneo") or _TIMEOUT_ESCANEO_SEGUNDOS
             emparejado = emparejar_auriculares(

@@ -32,9 +32,16 @@ python/
     ├── ocr/
     │   └── service.py         # OcrService: extracción de texto de un frame con RapidOCR
     ├── product/
-    │   └── parser.py          # parse_product: OcrResult -> RecognizedProduct
-    └── audio/
-        └── bluetooth_audio.py # hablar(): salida de voz por auriculares Bluetooth, respaldo a parlante local
+    │   ├── parser.py           # parse_product: OcrResult -> RecognizedProduct
+    │   └── vision_fallback.py  # respaldo remoto de reconocimiento visual (cuando el OCR no encuentra texto)
+    ├── audio/
+    │   └── bluetooth_audio.py  # hablar(): salida de voz por auriculares Bluetooth, respaldo a parlante local
+    └── backend/                # cliente de la API web (telemetría, identificaciones, config remota)
+        ├── client.py           # HTTP de bajo nivel: credenciales, cabeceras, clasificación de errores
+        ├── telemetry.py
+        ├── identifications.py  # cola persistente con reintentos, event_id estable
+        ├── remote_config.py
+        └── state.py            # dato compartido mínimo (vinculado/no) entre los dos anteriores
 
 python-libraries/
 ├── README.md                  # por qué rapidocr se distribuye como un wheel local parcheado
@@ -196,16 +203,26 @@ para el cálculo exacto.
   codifica el frame a JPEG y hace `POST http://<host>:<port>/analyze` con
   la imagen en un campo de formulario `image`. El servidor devuelve JSON
   con `producto_detectado`, `confianza_producto`, `precio_leido`,
-  `confianza_precio`, `mensaje_voz` y `tiempo_procesamiento_ms` -- el
-  cliente usa `mensaje_voz` tal cual, ya viene armado como frase hablable,
-  no hace falta reprocesarlo.
+  `confianza_precio`, `mensaje_voz` y `tiempo_procesamiento_ms`. El
+  cliente devuelve esto envuelto en `VisionRemotaResultado`
+  (`blindia/models.py`): `mensaje_voz` tal cual (ya viene armado como
+  frase hablable, no hace falta reprocesarlo) más `producto`/`price_ars`/
+  `confianza` ya normalizados, para que `main.py` pueda reportarlos a la
+  API web (ver docs/API-DISPOSITIVO.md) sin tener que parsear el JSON de
+  nuevo.
 - `main.py`, `run_capture()` -- si `ocr_result.fragments` está vacío, llama
   al respaldo remoto antes de intentar `parse_product()`. Si el servidor
-  responde bien, habla `mensaje_voz` directo y corta ahí. Si no responde
-  (apagado, timeout, red caída, JSON inesperado) `identificar_producto_remoto()`
-  devuelve `None` y el flujo sigue exactamente como antes (cae al mensaje
-  de reserva "No se detectó texto en la imagen.") -- nunca cuelga el
-  pipeline esperando a la PC.
+  responde bien, habla `resultado_remoto.mensaje_voz` directo y corta ahí
+  -- y si además `resultado_remoto.producto` vino con algo (el servidor
+  identificó algo concreto, no solo un mensaje de "no pude ver bien"),
+  reporta esa identificación a `/identifications` con `uad_cost=1` (la
+  resolvió el servidor de IA, a diferencia de `uad_cost=0` del camino de
+  OCR local). Si no responde (apagado, timeout, red caída, JSON
+  inesperado) `identificar_producto_remoto()` devuelve `None` y el flujo
+  sigue exactamente como antes (cae al mensaje de reserva "No se detectó
+  texto en la imagen.") -- nunca cuelga el pipeline esperando a la PC, y
+  una lectura fallida (de cualquiera de los dos caminos) nunca se reporta
+  a la web.
 
 ## Audio Bluetooth
 

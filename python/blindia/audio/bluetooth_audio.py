@@ -138,6 +138,21 @@ def auriculares_conectados() -> bool:
     return bool(respuesta and respuesta.get("conectado"))
 
 
+def aplicar_configuracion_voz(volumen: int | None, velocidad: str) -> bool:
+    """Le pide al daemon que aplique volumen (0-100, o `None` para no tocarlo) y velocidad.
+
+    `velocidad` es `"lenta"`, `"normal"` o `"rapida"` (ver
+    `blindia.backend.remote_config`, que es quien llama a esto con los
+    valores de `GET /config`). Nunca lanza: `False` si el daemon no
+    respondió.
+    """
+    respuesta = _pedir(
+        {"cmd": "ajustar_voz", "volumen": volumen, "velocidad": velocidad},
+        timeout=_TIMEOUT_CONSULTA_SEGUNDOS,
+    )
+    return bool(respuesta and respuesta.get("ok"))
+
+
 def configurar_salida_default() -> bool:
     """Le pide al daemon que reconfigure la salida de audio por defecto ahora mismo.
 

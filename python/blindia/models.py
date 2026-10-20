@@ -51,3 +51,21 @@ class RecognizedProduct:
     raw_text: str
     name: str | None
     price: str | None
+
+
+@dataclass(frozen=True, eq=False)
+class VisionRemotaResultado:
+    """Resultado del respaldo remoto de reconocimiento visual (ver `blindia.product.vision_fallback`).
+
+    `mensaje_voz` ya viene armado por el servidor, listo para `hablar()`.
+    `producto`/`price_ars`/`confianza` son el dato estructurado detrás de
+    ese mensaje -- `None` cuando el servidor no llegó a identificar nada
+    concreto (ej. respondió un mensaje de "no pude ver bien el producto"
+    sin `producto_detectado`), que es la señal que usa `main.py` para NO
+    reportarlo como una identificación real a la API web.
+    """
+
+    mensaje_voz: str
+    producto: str | None
+    price_ars: int | None
+    confianza: float | None

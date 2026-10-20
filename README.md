@@ -18,6 +18,14 @@ al parlante local de la placa si no. La síntesis de voz usa
 [Piper](https://github.com/rhasspy/piper) (TTS neuronal) como motor
 principal, con `espeak-ng` como respaldo si Piper no está disponible.
 
+Si el equipo ya está vinculado a una cuenta (ver
+[docs/VINCULACION-USB.md](docs/VINCULACION-USB.md)), también reporta su
+estado y cada identificación real a una web de administración, y aplica
+la configuración que el cliente elige ahí (velocidad de voz, volumen,
+nivel de detalle) -- ver [docs/API-DISPOSITIVO.md](docs/API-DISPOSITIVO.md).
+Sin conexión, o sin vincular todavía, el anteojo identifica y habla
+exactamente igual: el pipeline del botón nunca espera a la web.
+
 ## Hardware
 
 - Arduino UNO Q (MPU corriendo la app Python + MCU corriendo el sketch del botón)
@@ -47,3 +55,9 @@ docs/DEVELOPMENT.md      # documentación técnica completa: desglose módulo po
   producto, y qué queda pendiente.
 - **[python-libraries/README.md](python-libraries/README.md)** -- por qué
   se incluye un wheel de RapidOCR parcheado en vez de instalarlo desde PyPI.
+- **[docs/VINCULACION-USB.md](docs/VINCULACION-USB.md)** -- cómo se da de
+  alta el equipo por USB desde una web de administración (implementado y
+  probado con hardware real).
+- **[docs/API-DISPOSITIVO.md](docs/API-DISPOSITIVO.md)** -- el contrato de
+  la API web (telemetría, identificaciones, configuración remota) y cómo
+  está implementado en este repo.

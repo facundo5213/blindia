@@ -91,14 +91,26 @@ def parse_product(ocr_result: OcrResult) -> RecognizedProduct:
     return RecognizedProduct(raw_text=text, name=name, price=price)
 
 
-def describe_product(product: RecognizedProduct) -> str:
+def describe_product(product: RecognizedProduct, detail_level: str = "breve") -> str:
     """Convierte un `RecognizedProduct` en una frase apta para hablar con `hablar()`.
 
     Cae al texto crudo del OCR cuando no matcheó ni `name` ni `price`, ya
     que eso sigue siendo más útil para el usuario que quedarse en silencio.
+
+    `detail_level` ("breve" o "detallada", ver
+    `blindia.backend.remote_config.nivel_detalle_actual`, que es el valor
+    que elige el cliente desde su panel): "breve" es el comportamiento de
+    siempre (nombre + precio). "detallada" agrega además el texto completo
+    detectado por el OCR -- hoy no hay ninguna detección separada de
+    marca/presentación/promociones (ver docs/API-DISPOSITIVO.md), así que
+    el texto completo es el único dato "que ya existe" para agregar sin
+    inventar un campo nuevo.
     """
     if product.name and product.price:
-        return f"{product.name}, {product.price}"
+        base = f"{product.name}, {product.price}"
+        if detail_level == "detallada":
+            return f"{base}. Texto completo detectado: {product.raw_text}"
+        return base
     if product.name:
         return product.name
     if product.price:
@@ -106,3 +118,22 @@ def describe_product(product: RecognizedProduct) -> str:
     if product.raw_text:
         return f"No se identificó el producto. Texto detectado: {product.raw_text}"
     return "No se detectó texto en la imagen."
+
+
+def extraer_price_ars(price: str | None) -> int | None:
+    """Convierte el precio detectado (ej. "$1.549,90") a pesos enteros, para reportarlo a la API web.
+
+    Asume formato argentino ("." separa miles, "," separa decimales) --
+    coherente con que la cuenta y el panel del cliente son en pesos
+    argentinos (ver docs/API-DISPOSITIVO.md). Los centavos se truncan: el
+    campo `price_ars` de la API es entero. Devuelve `None` si no se pudo
+    parsear -- un precio que no se entendió no debe impedir reportar el
+    resto del evento (`price_ars` es un campo opcional en el contrato).
+    """
+    if not price:
+        return None
+    parte_entera = price.replace("$", "").strip().split(",")[0]
+    solo_digitos = re.sub(r"\D", "", parte_entera)
+    if not solo_digitos:
+        return None
+    return int(solo_digitos)

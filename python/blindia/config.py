@@ -27,6 +27,37 @@ TRIGGER_FIFO_PATH: Path = APP_ROOT / "data" / "trigger"
 # resolver el nombre directo.
 SERVER_IP_FILE: Path = APP_ROOT / "data" / "server_ip.txt"
 
+# Credenciales de vinculación de este equipo físico (serial + clave),
+# escritas por scripts/usb_vinculacion_daemon.py vía el protocolo de
+# docs/VINCULACION-USB.md. Si no existe, el equipo no está vinculado
+# todavía -- el resto de la app funciona igual, simplemente no hay nada
+# que mandarle a la web de administración.
+DEVICE_CREDENTIALS_FILE: Path = APP_ROOT / "data" / "device_credentials.json"
+
+# Código de enlace (8 caracteres) impreso en la caja del anteojo. Extensión
+# opcional v1.1 del protocolo de vinculación (ver docs/VINCULACION-USB.md):
+# le permite al anteojo "decirle" ese código a la web por el cable en vez de
+# que el cliente lo tipee a mano. NO es una credencial de API -- nunca se usa
+# para hablar con la web de reconocimiento, solo para la vinculación por USB.
+DEVICE_PAIRING_FILE: Path = APP_ROOT / "data" / "pairing_code.txt"
+
+# Cola persistente de identificaciones todavía no confirmadas por la web
+# (ver `blindia.backend.identifications`) y contador para generar
+# `event_id` (serial + contador) estable ante reintentos y reinicios.
+IDENTIFICATION_QUEUE_FILE: Path = APP_ROOT / "data" / "identification_queue.json"
+IDENTIFICATION_COUNTER_FILE: Path = APP_ROOT / "data" / "identification_counter.txt"
+
+# Última versión de configuración remota ya aplicada (ver
+# `blindia.backend.remote_config`), para poder pedir `?since=<version>` y
+# que la web conteste "sin cambios" la mayoría de las veces.
+REMOTE_CONFIG_VERSION_FILE: Path = APP_ROOT / "data" / "remote_config_version.txt"
+
+# Versión de firmware reportada a la web en cada latido de telemetría (ver
+# `blindia.backend.telemetry`). No está atada a ningún build automático
+# todavía -- bump manual si en algún momento hace falta distinguir
+# versiones en el panel de administración.
+FIRMWARE_VERSION: str = "1.0.0"
+
 
 @dataclass(frozen=True)
 class CameraSettings:
@@ -135,3 +166,56 @@ class VisionFallbackSettings:
     host: str = "blindia-server.local"
     port: int = 8000
     timeout_segundos: float = 8.0
+
+
+@dataclass(frozen=True)
+class ApiSettings:
+    """Configuración del cliente de la API web de administración (ver docs/API-DISPOSITIVO.md).
+
+    Attributes:
+        base_url: Dirección base de la API. **Solo la de producción**
+            (`https://blind-ia.vercel.app`) -- nunca una dirección de
+            "vista previa" de Vercel, que cambia en cada despliegue y
+            además puede estar protegida por autenticación propia de
+            Vercel. Es un dato de configuración (acá) a propósito, no una
+            constante escondida en el cliente HTTP, para poder apuntar a
+            un entorno de desarrollo sin tocar código si hiciera falta.
+        request_timeout_segundos: Timeout corto a propósito: un pedido a
+            la web nunca debe poder demorar el pipeline del botón (que de
+            hecho nunca espera a ninguno de estos pedidos, ver
+            `blindia.backend`) ni trabar el hilo de fondo por mucho tiempo
+            si la red está caída.
+        telemetry_interval_segundos: Cada cuánto mandar un latido de
+            telemetría mientras la app esté corriendo (además de uno al
+            arrancar). El contrato pide "cada 60-120s"; 90 es el punto
+            medio.
+        config_poll_interval_segundos: Cada cuánto pedir configuración
+            remota (además de una vez al arrancar). El contrato pide
+            "cada ~5 min".
+        max_eventos_en_cola: Tope de la cola persistente de
+            identificaciones sin confirmar (ver
+            `blindia.backend.identifications`). El contrato pide "al
+            menos 20"; se deja bastante margen por encima para no perder
+            eventos reales en una salida prolongada sin señal.
+        reintento_backoff_segundos: Escalera de espera entre reintentos
+            de un mismo evento ante un error de red o 5xx (ver la tabla
+            de errores del contrato) -- 5s, 15s, 60s, y de ahí en más el
+            tope de 5 minutos.
+        pausa_tras_401_segundos: Cuánto esperar antes de volver a intentar
+            cualquier pedido autenticado después de un 401 (serial/clave
+            no coinciden) -- el contrato pide "no insistir cada pocos
+            segundos", así que no tiene sentido reintentar con el mismo
+            backoff corto que una falla de red transitoria.
+        pausa_tras_429_segundos: Cuánto esperar antes de mandar el
+            próximo pedido después de un 429 (límite de eventos por
+            minuto superado).
+    """
+
+    base_url: str = "https://blind-ia.vercel.app"
+    request_timeout_segundos: float = 8.0
+    telemetry_interval_segundos: float = 90.0
+    config_poll_interval_segundos: float = 300.0
+    max_eventos_en_cola: int = 200
+    reintento_backoff_segundos: tuple[float, ...] = (5.0, 15.0, 60.0, 300.0)
+    pausa_tras_401_segundos: float = 300.0
+    pausa_tras_429_segundos: float = 60.0

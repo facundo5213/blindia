@@ -27,6 +27,22 @@ data/bluetooth_audio.sock
 # específico de esta red/PC, no algo para versionar
 data/server_ip.txt
 
+# Credencial de vinculación de este equipo físico (ver
+# docs/VINCULACION-USB.md) -- nunca es código fuente, es secreta
+data/device_credentials.json
+
+# Código de enlace (extensión v1.1, ver docs/VINCULACION-USB.md) -- mismo
+# tratamiento que la credencial de arriba, no es código fuente
+data/pairing_code.txt
+
+# Estado de runtime del cliente de la API web de administración (ver
+# docs/API-DISPOSITIVO.md y blindia/backend/): cola de identificaciones
+# sin confirmar, contador de event_id, y última versión de configuración
+# remota aplicada -- ninguno es código fuente, todos son estado local.
+data/identification_queue.json
+data/identification_counter.txt
+data/remote_config_version.txt
+
 # Claude Code local machine settings (permissions etc.) -- personal to this
 # board/user, not project config; see .claude/settings.json if one exists
 # for settings meant to be shared
